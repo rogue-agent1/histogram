@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-"""histogram - Generate text histograms from data. Zero deps."""
-import sys, collections
-def main():
-    bins = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 10
-    numbers = [float(l.strip()) for l in sys.stdin if l.strip()]
-    if not numbers: print("No data"); sys.exit(1)
-    lo, hi = min(numbers), max(numbers)
-    width = (hi - lo) / bins if hi != lo else 1
-    buckets = [0] * bins
-    for n in numbers:
-        idx = min(int((n - lo) / width), bins - 1)
-        buckets[idx] += 1
-    mx = max(buckets)
-    for i, count in enumerate(buckets):
-        lo_b = lo + i * width
-        bar = "█" * int(count / mx * 40) if mx else ""
-        print(f"{lo_b:8.2f} | {bar} {count}")
-    print(f"\nn={len(numbers)} min={lo:.2f} max={hi:.2f} mean={sum(numbers)/len(numbers):.2f}")
-if __name__ == "__main__": main()
+"""Histogram — terminal bar chart from data."""
+import sys, re
+from collections import Counter
+def histogram(data, width=40):
+    counts = Counter(data)
+    mx = max(counts.values()) if counts else 1
+    for k, v in sorted(counts.items(), key=lambda x: -x[1]):
+        bar = "█" * (v * width // mx)
+        print(f"  {str(k):>15s} |{bar} {v}")
+if __name__ == "__main__":
+    if not sys.stdin.isatty():
+        words = re.findall(r'\w+', sys.stdin.read().lower())
+    else:
+        words = "the quick brown fox jumps over the lazy dog the fox the dog".split()
+    histogram(words)
