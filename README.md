@@ -1,9 +1,11 @@
 # histogram
 
-Terminal histograms, sparklines, statistical analysis, frequency counts
+Histogram computation and equalization.
+
+## Usage
 
 ```bash
 python3 histogram.py test
 ```
 
-Zero deps. Python 3.8+.
+Zero dependencies. Python 3.8+.

@@ -1,119 +1,67 @@
 #!/usr/bin/env python3
-"""histogram - Terminal histogram and distribution analysis."""
-import sys, math
+"""histogram - Histogram computation and equalization."""
+import sys
 
-def histogram(data, bins=10, width=50):
-    if not data:
-        return []
-    mn, mx = min(data), max(data)
+def compute_histogram(data, bins=10, range_=None):
+    if range_ is None:
+        mn, mx = min(data), max(data)
+    else:
+        mn, mx = range_
     if mn == mx:
-        return [{"lo": mn, "hi": mx, "count": len(data), "bar": "#" * width}]
-    
+        return [len(data)], [(mn, mx)]
     bin_width = (mx - mn) / bins
     counts = [0] * bins
+    edges = [(mn + i*bin_width, mn + (i+1)*bin_width) for i in range(bins)]
     for v in data:
-        idx = min(int((v - mn) / bin_width), bins - 1)
-        counts[idx] += 1
-    
-    max_count = max(counts) or 1
+        idx = int((v - mn) / bin_width)
+        idx = min(idx, bins - 1)
+        if idx >= 0:
+            counts[idx] += 1
+    return counts, edges
+
+def cumulative_histogram(counts):
     result = []
-    for i in range(bins):
-        lo = mn + i * bin_width
-        hi = lo + bin_width
-        bar_len = int(counts[i] / max_count * width)
-        result.append({"lo": round(lo, 2), "hi": round(hi, 2),
-                       "count": counts[i], "bar": "█" * bar_len})
+    total = 0
+    for c in counts:
+        total += c
+        result.append(total)
     return result
 
-def stats(data):
-    if not data:
-        return {}
-    n = len(data)
-    mean = sum(data) / n
-    var = sum((x - mean)**2 for x in data) / n
-    std = math.sqrt(var)
-    sorted_d = sorted(data)
-    
-    def percentile(p):
-        k = (n-1) * p / 100
-        f = math.floor(k)
-        c = math.ceil(k)
-        if f == c:
-            return sorted_d[int(k)]
-        return sorted_d[f] * (c-k) + sorted_d[c] * (k-f)
-    
-    return {
-        "count": n, "min": min(data), "max": max(data),
-        "mean": round(mean, 4), "std": round(std, 4),
-        "median": percentile(50),
-        "p25": percentile(25), "p75": percentile(75),
-        "p95": percentile(95), "p99": percentile(99),
-    }
+def equalize(values, levels=256):
+    counts, _ = compute_histogram(values, bins=levels, range_=(0, levels-1))
+    cumul = cumulative_histogram(counts)
+    n = len(values)
+    cdf_min = min(c for c in cumul if c > 0)
+    lut = [round((c - cdf_min) / (n - cdf_min) * (levels - 1)) if n > cdf_min else 0 for c in cumul]
+    return [lut[min(int(v), levels-1)] for v in values]
 
-def ascii_sparkline(data, width=40):
-    if not data:
-        return ""
-    mn, mx = min(data), max(data)
-    chars = " ▁▂▃▄▅▆▇█"
-    if mn == mx:
-        return chars[4] * min(len(data), width)
-    
-    # Bucket if too many points
-    if len(data) > width:
-        bucket_size = len(data) / width
-        buckets = []
-        for i in range(width):
-            start = int(i * bucket_size)
-            end = int((i+1) * bucket_size)
-            buckets.append(sum(data[start:end]) / max(1, end-start))
-        data = buckets
-    
-    return "".join(chars[min(8, int((v-mn)/(mx-mn)*8))] for v in data)
-
-def frequency(data):
-    freq = {}
-    for v in data:
-        freq[v] = freq.get(v, 0) + 1
-    return sorted(freq.items(), key=lambda x: -x[1])
+def percentile(data, p):
+    sorted_data = sorted(data)
+    k = (len(sorted_data) - 1) * p / 100
+    f = int(k)
+    c = f + 1 if f + 1 < len(sorted_data) else f
+    d = k - f
+    return sorted_data[f] + d * (sorted_data[c] - sorted_data[f])
 
 def test():
-    data = [1, 2, 2, 3, 3, 3, 4, 4, 5, 10]
-    
-    h = histogram(data, bins=5)
-    assert len(h) == 5
-    assert sum(b["count"] for b in h) == len(data)
-    
-    s = stats(data)
-    assert s["count"] == 10
-    assert s["min"] == 1
-    assert s["max"] == 10
-    assert 3 < s["mean"] < 4
-    
-    spark = ascii_sparkline([1,2,3,4,5,4,3,2,1])
-    assert len(spark) == 9
-    
-    freq = frequency([1,1,2,2,2,3])
-    assert freq[0] == (2, 3)
-    
-    # Edge cases
-    assert stats([]) == {}
-    assert histogram([]) == []
-    assert ascii_sparkline([]) == ""
-    
-    print(f"Stats: {s}")
-    print(f"Sparkline: {spark}")
-    print("All tests passed!")
+    data = [1, 2, 2, 3, 3, 3, 4, 4, 5]
+    counts, edges = compute_histogram(data, bins=5, range_=(1, 5))
+    assert len(counts) == 5
+    assert sum(counts) == 9
+    cumul = cumulative_histogram(counts)
+    assert cumul[-1] == 9
+    # percentile
+    assert percentile(data, 50) == 3.0
+    assert percentile(data, 0) == 1.0
+    assert percentile(data, 100) == 5.0
+    # equalize
+    dark = [10, 20, 30, 10, 20, 30, 10, 20]
+    eq = equalize(dark, 256)
+    assert max(eq) > max(dark)  # spread out
+    print("OK: histogram")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         test()
-    elif len(sys.argv) > 1:
-        data = [float(x) for x in sys.argv[1:]]
-        s = stats(data)
-        for k, v in s.items():
-            print(f"  {k}: {v}")
-        print()
-        for b in histogram(data):
-            print(f"  [{b['lo']:8.2f}-{b['hi']:8.2f}] {b['count']:4d} {b['bar']}")
     else:
-        print("Usage: histogram.py <numbers...>")
+        print("Usage: histogram.py test")
