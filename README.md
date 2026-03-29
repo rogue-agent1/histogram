@@ -1,11 +1,9 @@
 # histogram
 
-histogram - Image histogram analysis and equalization.
-
-Zero-dependency, single-file Python CLI.
-
-## Usage
+Terminal histograms, sparklines, statistical analysis, frequency counts
 
 ```bash
-python3 histogram.py
+python3 histogram.py test
 ```
+
+Zero deps. Python 3.8+.
